@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>n8n Workflow</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
+  <script src="https://unpkg.com/lit/polyfill-support.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@n8n_io/n8n-demo-component/n8n-demo.bundled.js"></script>
+
+  <style>
+    html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1f2937;
+  }
+
+  n8n-demo {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    --n8n-workflow-min-height: 100vh;
+  }
+  </style>
+</head>
+<body>
+  <div id="output"></div>
+
+  <script>
+  const container = document.getElementById('output');
+
+  fetch('./workflow.json')
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to load workflow.json');
+      return res.json();
+    })
+    .then(data => {
+      const demo = document.createElement('n8n-demo');
+
+      demo.setAttribute('frame', 'true');
+      demo.setAttribute('clicktointeract', 'true');
+      demo.setAttribute('workflow', JSON.stringify(data));
+
+      container.appendChild(demo);
+    })
+    .catch(err => {
+      console.error(err);
+      container.innerHTML = '<p style="color:white">Failed to load workflow.json</p>';
+    });
+</script>
+</body>
+</html>
