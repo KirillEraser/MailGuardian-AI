@@ -11,6 +11,12 @@ University and corporate inboxes are often overloaded with low-value emails, mak
 
 ---
 
+## 🔍 Interactive Workflow
+
+[![Workflow Preview](./preview.png)](https://kirilleraser.github.io/MailGuardian-AI/)
+
+👉 Click to explore the full automation in an interactive n8n-style viewer
+
 ## 🎯 Overview
 This project implements an automated email classification pipeline using **n8n**, **OpenAI**, and the **Gmail API**.
 
