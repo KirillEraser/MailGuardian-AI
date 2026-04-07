@@ -1,0 +1,286 @@
+{
+  "name": "InboxGuardian AI",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "readStatus": "unread"
+        }
+      },
+      "id": "5e01a927-caf7-41ad-aca7-d7504e313564",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "position": [
+        368,
+        224
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PLACEHOLDER_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "id": "a8644856-a8bf-49de-84a7-3fd9f93550d3",
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        592,
+        224
+      ],
+      "webhookId": "[REDACTED_WEBHOOK_ID]",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PLACEHOLDER_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"label\": \"Label name\", \n\"label ID\": \"label ID\" \n}"
+      },
+      "id": "f6ddae9f-303b-46cd-980d-1d46fc4ecbec",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        1200,
+        448
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail').item.json.id }}",
+        "labelIds": "={{ $json.output['label ID'] }}"
+      },
+      "id": "cc6b0990-a778-4199-a0fe-80c83dfb9934",
+      "name": "Gmail1",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1408,
+        224
+      ],
+      "webhookId": "[REDACTED_WEBHOOK_ID]",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PLACEHOLDER_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Run the task.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=**Objective:** Analyze the provided email data and classify it with the most appropriate label. **Utilize the capability to check for prior email history (emails sent to or received from the sender by `USER_EMAIL`)** to determine if this is a first-time interaction (cold email) or part of an existing relationship. This context is crucial for accurate labeling. Respond with *only* the corresponding Label ID.\n\n**Your Email Address (for context):** `USER_EMAIL`\n\n**Key Capabilities (to be used by the system executing this prompt):**\n\n* **Check Prior Email History:** Before full classification, determine if any prior email correspondence exists between `USER_EMAIL` and `{{ $json.from.value[0].address }}`. This check should yield \"Yes\" (history exists) or \"No\" (no history found).\n\n**Input Email Data (from n8n JSON item for the *current* email):**\n\n* **Sender Email:** `{{ $json.from.value[0].address }}`\n* **Sender Name:** `{{ $json.from.value[0].name }}`\n* **Direct Recipient Emails (To):** `{{ $json.to.value.map(r => r.address).join(', ') }}`\n* **CC Recipient Emails:** `{{ $json.cc.value.map(r => r.address).join(', ') }}`\n* **Subject:** `{{ $json.subject }}`\n* **Body (Plain Text):** `{{ $json.text }}`\n* **Existing Gmail Labels (for current email):** `{{ $json.labelIds.join(', ') }}`\n* **Auto-Submitted Header:** `{{ $json.headers['auto-submitted'] }}`\n* **Original Sender Header (if different from From):** `{{ $json.headers.sender }}`\n* **In-Reply-To Header (for current email):** `{{ $json.headers['in-reply-to'] }}`\n* **References Header (for current email):** `{{ $json.headers.references }}`\n* **List-Unsubscribe Header:** `{{ $json.headers['list-unsubscribe'] }}`\n* **Precedence Header:** `{{ $json.headers.precedence }}`\n\n---\n\n**Labels, Descriptions, and Prioritization Logic**\n\n**Guidance on Using Prior Email History & Unsubscribe Links:**\n\n* **Prior Email History = \"No\":**\n\n  * Strong indicator of a **cold or unsolicited email**.\n  * If promotional, event invitation, newsletter, club announcement, or unrelated opportunity → likely **Likely Spam**.\n\n* **Prior Email History = \"Yes\":**\n\n  * Indicates an **existing relationship or recurring system email**.\n  * If it is about coursework, assignments, grades, or course announcements → classify accordingly.\n  * If it is a direct personal message → may be **Personal** or **Urgent**.\n\n* **`List-Unsubscribe` Header or Unsubscribe Links in Body:**\n\n  * Often indicates **mass emails, newsletters, invitations, or promotions**.\n  * These should generally be classified as **Likely Spam** unless they contain critical academic information.\n\n* **`Precedence: Bulk` Header:**\n\n  * Often indicates **mass mailings** such as newsletters, event announcements, campus invitations, or promotional emails.\n  * Typically classify these as **Likely Spam** unless the content clearly relates to coursework or urgent administrative action.\n\n---\n\n### Urgent (Label ID: `Label_2962648655432497528`)\n\n* **Primary Criteria:** Requires immediate action or attention from the user.\n* **Examples:**\n\n  * Assignment deadlines\n  * Exam schedules, venues, or time changes\n  * Submission boxes\n  * Required forms or urgent academic actions\n  * Professors requesting information or responses\n* **Indicators:**\n\n  * Words like: \"due\", \"deadline\", \"submission\", \"exam\", \"midterm\", \"venue\", \"room\", \"required\".\n\n---\n\n### Grades (Label ID: `Label_4127432976997984056`)\n\n* **Primary Criteria:** Email communicates evaluation results or academic performance updates.\n* **Examples:**\n\n  * Grades released\n  * Feedback published\n  * Exam results\n  * Assignment scores\n* **Indicators:**\n\n  * Words like: \"grades released\", \"results\", \"score\", \"feedback\", \"assessment results\".\n\n---\n\n### Course Info (Label ID: `Label_5135450475372304094`)\n\n* **Primary Criteria:** Course-related updates that **do not require immediate action**.\n* **Examples:**\n\n  * Lecture cancellations\n  * Review session announcements\n  * Piazza digests\n  * Moodle updates\n  * Course discussion notifications\n  * Meeting recordings from course sessions\n* **Indicators:**\n\n  * References to course codes, lectures, sections, review sessions, class announcements.\n\n---\n\n### Personal (Label ID: `Label_5221723647636110394`)\n\n* **Primary Criteria:** A direct message written personally to the user from a professor, advisor, TA, or collaborator.\n* **Examples:**\n\n  * Advisor introductions\n  * Professor replies\n  * Group project discussions\n  * Academic advising communication\n* **Indicators:**\n\n  * Personal tone\n  * Direct reference to the user by name\n  * Reply chains (`In-Reply-To` / `References` headers).\n\n---\n\n### Admin (Label ID: `Label_8515906197145559773`)\n\n* **Primary Criteria:** Official university administrative notices affecting students.\n* **Examples:**\n\n  * Registrar announcements\n  * Housing notices\n  * Immigration / visa information\n  * Official university policy or safety announcements\n* **Indicators:**\n\n  * Sender from official university departments\n  * Policy changes\n  * Institutional notices affecting students broadly.\n\n---\n\n### Likely Spam (Label ID: `Label_8543175480952683112`)\n\n* **Primary Criteria:** Mass emails that are not relevant to the user's academic responsibilities.\n* **Examples:**\n\n  * Event invitations\n  * Hackathons or club activities not directly related to coursework\n  * Library workshops\n  * Counseling or wellness programs\n  * Career newsletters\n  * Campus event digests\n  * Marketing emails\n  * Meeting artifact notifications unrelated to coursework\n* **Indicators:**\n\n  * Mass mailing to \"All Students\" or similar\n  * Newsletter-style format\n  * Promotional or invitation content\n  * Contains unsubscribe links\n  * Events, workshops, or programs not tied to coursework.\n\n---\n\n**Email Data for Classification (Summary):**\n\n* **Prior Email History with Sender (Yes/No)**\n* Sender Email: `{{ $json.from.value[0].address }}`\n* Sender Name: `{{ $json.from.value[0].name }}`\n* Direct Recipient Emails (To): `{{ $json.to.value.map(r => r.address).join(', ') }}`\n* CC Recipient Emails: `{{ $json.cc.value.map(r => r.address).join(', ') }}`\n* Subject: `{{ $json.subject }}`\n* Body (Plain Text): `{{ $json.text }}`\n* Existing Gmail Labels: `{{ $json.labelIds.join(', ') }}`\n* Auto-Submitted Header: `{{ $json.headers['auto-submitted'] }}`\n* Original Sender Header: `{{ $json.headers.sender }}`\n* In-Reply-To Header: `{{ $json.headers['in-reply-to'] }}`\n* References Header: `{{ $json.headers.references }}`\n* List-Unsubscribe Header: `{{ $json.headers['list-unsubscribe'] }}`\n* Precedence Header: `{{ $json.headers.precedence }}`\n\n**Output:** [Provide ONLY the Label ID here]\n"
+        }
+      },
+      "id": "b0ed86c7-5ddd-48dc-aa93-5c4d5c1cacf7",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        944,
+        224
+      ],
+      "typeVersion": 1.9
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Return_All', ``, 'boolean') }}",
+        "filters": {
+          "q": "=from:{{ $fromAI('email') }}"
+        }
+      },
+      "id": "f4bbdda0-dcd8-41a7-a870-69dfcb747a4f",
+      "name": "Get Email",
+      "type": "n8n-nodes-base.gmailTool",
+      "position": [
+        944,
+        448
+      ],
+      "webhookId": "[REDACTED_WEBHOOK_ID]",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PLACEHOLDER_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "filters": {
+          "labelIds": [
+            "SENT"
+          ],
+          "q": "=to:{{ $fromAI('email') }}"
+        }
+      },
+      "id": "64c3b465-d2be-43cc-ad41-cc1298038640",
+      "name": "Check Sent",
+      "type": "n8n-nodes-base.gmailTool",
+      "position": [
+        1072,
+        448
+      ],
+      "webhookId": "[REDACTED_WEBHOOK_ID]",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PLACEHOLDER_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        816,
+        448
+      ],
+      "id": "abaf6afe-daa9-4146-a553-44ca7ddc35f9",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "PLACEHOLDER_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI Account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail1": {
+      "main": [
+        []
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Gmail1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sent": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "6407f79f-0021-497f-ab82-c0a892b0fa8d",
+  "meta": {
+    "templateId": "4722",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ddbfb78e919dbe7d0d5b21a16c3dae4ebf9718120f66676aa59de8779eb12cb9"
+  },
+  "id": "Q6wFNJWGpKUr7E36",
+  "tags": []
+}
